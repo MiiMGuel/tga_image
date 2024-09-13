@@ -20,9 +20,7 @@ int main(int argc, char* argv[]) {
         for (size_t x = 1; x <= image->header.width; x++) {
             tga_image_setp(image, x, y, color[y - 1]);
         }
-    }
-
-    tga_image_write(image, "out.tga");
+    } tga_image_write(image, "out.tga");
     
     tga_image_delete(image);
     return 0;

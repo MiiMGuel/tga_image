@@ -8,6 +8,11 @@ extern "C" {
 #include <stdbool.h>
 #include <inttypes.h>
 
+#define TGA_HEADER_RGB(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 24, .width = w, .height = h}
+#define TGA_HEADER_RGBA(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 32, .width = w, .height = h}
+#define TGA_HEADER_RGB_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 24, .width = w, .height = h}
+#define TGA_HEADER_RGBA_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 32, .width = w, .height = h}
+
 // data type field
 typedef enum tga_dtf {
     TGA_DTF_ZERO       = 0,
@@ -36,11 +41,6 @@ typedef struct tga_header {
     int8_t  bits_per_pixel;
     int8_t  image_descriptor;
 } tga_header_t;
-
-#define TGA_HEADER_RGB(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 24, .width = w, .height = h}
-#define TGA_HEADER_RGBA(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 32, .width = w, .height = h}
-#define TGA_HEADER_RGB_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 24, .width = w, .height = h}
-#define TGA_HEADER_RGBA_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 32, .width = w, .height = h}
 
 typedef struct tga_image {
     tga_header_t header;

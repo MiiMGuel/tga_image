@@ -1,2 +1,2 @@
 # tga_image
-Single header for editing TGA files in C
+Single header for editing Truevision-TARGA files in C

@@ -8,11 +8,6 @@ extern "C" {
 #include <stdbool.h>
 #include <inttypes.h>
 
-#define TGA_HEADER_RGB(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 24, .width = w, .height = h}
-#define TGA_HEADER_RGBA(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB, .bits_per_pixel = 32, .width = w, .height = h}
-#define TGA_HEADER_RGB_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 24, .width = w, .height = h}
-#define TGA_HEADER_RGBA_RLE(w, h) (tga_header_t){.data_type_code = TGA_DTF_RGB_RLE, .bits_per_pixel = 32, .width = w, .height = h}
-
 // data type field
 typedef enum tga_dtf {
     TGA_DTF_ZERO       = 0,
@@ -53,9 +48,6 @@ typedef struct tga_image {
 
 uint8_t* tga_rle_encode  (uint8_t* data, size_t* size, int32_t width, int32_t height, int8_t bytespp);
 uint8_t* tga_rle_decode  (uint8_t* data, size_t size, int32_t width, int32_t height, int8_t bytespp);
-uint8_t* tga_endian_swap (uint8_t* data, size_t size, int8_t dtf, int8_t bytespp);
-int      tga_image_encode(tga_image_t** image, uint8_t* color);
-int      tga_image_decode(tga_image_t* image, uint8_t** color);
 int      tga_image_read  (tga_image_t** image, const char* filename);
 int      tga_image_write (tga_image_t* image, const char* filename);
 void     tga_image_delete(tga_image_t* image);
@@ -133,69 +125,6 @@ uint8_t* tga_rle_decode(uint8_t* data, size_t size, int32_t width, int32_t heigh
         free(buffer);
         return NULL;
     } else return buffer; 
-}
-
-uint8_t* tga_endian_swap(uint8_t* data, size_t size, int8_t dtf, int8_t bytespp) {
-    if (data == NULL || size == 0 || bytespp == 0) return NULL;
-    uint8_t* buffer = (uint8_t*)malloc(size);
-
-    if (dtf == 0) return NULL;
-    else if (dtf != 3 && dtf != 11) {
-        for (size_t i = 0; i < size; i += bytespp) {
-            for (uint8_t x = 0; x < bytespp - 1; x++) buffer[i + x] = data[(i + bytespp - 2) - x]; 
-        }
-    } else {
-        for (size_t i = 0; i < size; i += bytespp) {
-            for (uint8_t x = 0; x < bytespp; x++) buffer[i + x] = data[(i + bytespp - 1) - x];
-        }
-    } return buffer;
-}
-
-int tga_image_encode(tga_image_t** image, uint8_t* color) {
-    if (*image == NULL || color == NULL) return 1;
-    free((*image)->data_color);
-
-    size_t color_size = (*image)->header.width * (*image)->header.height * ((*image)->header.bits_per_pixel / 8);
-    if ((*image)->header.data_type_code == 0) return -1;
-    else if ((*image)->header.data_type_code < 9) {
-        (*image)->data_color = color;
-        // (*image)->data_color = tga_endian_swap(color, color_size, (*image)->header.data_type_code, (*image)->header.bits_per_pixel / 8);
-    } else if ((*image)->header.data_type_code < 32) {
-        // uint8_t* color_lendian = tga_endian_swap(color, color_size, (*image)->header.data_type_code, (*image)->header.bits_per_pixel / 8);
-        // if (color_lendian == NULL) return 2; 
-        (*image)->data_color = tga_rle_encode(
-            color,
-            &(*image)->data_color_size,
-            (*image)->header.width,
-            (*image)->header.height,
-            (*image)->header.bits_per_pixel / 8
-        ); // free(color_lendian);
-    } if ((*image)->data_color == NULL) return 3;
-
-    return 0;
-}
-
-int tga_image_decode(tga_image_t* image, uint8_t** color) {
-    if (image == NULL || image->data_color == NULL) return 1;
-
-    size_t color_size = image->header.width * image->header.height * (image->header.bits_per_pixel / 8);
-    *color = (uint8_t*)malloc(color_size);
-    if (image->header.data_type_code == 0) return -1;
-    else if (image->header.data_type_code < 9) {
-        *color = tga_endian_swap(image->data_color, color_size, image->header.data_type_code, image->header.bits_per_pixel / 8);
-    } else if (image->header.data_type_code < 32) {
-        uint8_t* color_decode = tga_rle_decode(
-            image->data_color, 
-            image->data_color_size, 
-            image->header.width,
-            image->header.height,
-            image->header.bits_per_pixel / 8
-        ); if (color_decode == NULL) return 2; 
-        memcpy(*color, color_decode, color_size);
-        // *color = tga_endian_swap(color_decode, color_size, image->header.data_type_code, image->header.bits_per_pixel / 8);
-        free(color_decode);
-    } if (*color == NULL) return 3;
-    return 0;
 }
 
 int tga_image_read(tga_image_t** image, const char* filename) {

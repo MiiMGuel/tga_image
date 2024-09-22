@@ -46,15 +46,17 @@ typedef struct tga_image {
     size_t       data_color_size;
 } tga_image_t;
 
-uint8_t* tga_rle_encode  (uint8_t* data, size_t* size, int32_t width, int32_t height, int8_t bytespp);
-uint8_t* tga_rle_decode  (uint8_t* data, size_t size, int32_t width, int32_t height, int8_t bytespp);
-int      tga_image_read  (tga_image_t** image, const char* filename);
-int      tga_image_write (tga_image_t* image, const char* filename);
-void     tga_image_delete(tga_image_t* image);
+uint8_t*     tga_rle_encode  (uint8_t* data, size_t* size, int16_t width, int16_t height, int8_t bytespp);
+uint8_t*     tga_rle_decode  (uint8_t* data, size_t size, int16_t width, int16_t height, int8_t bytespp);
+tga_image_t* tga_image_read  (const char* filename);
+bool         tga_image_write (tga_image_t* image, const char* filename);
+bool         tga_image_rle   (tga_image_t* image);
+bool         tga_image_rld   (tga_image_t* image);
+void         tga_image_delete(tga_image_t* image);
 
 #ifdef TGA_IMAGE_IMPL
-uint8_t* tga_rle_encode(uint8_t* data, size_t* size, int32_t width, int32_t height, int8_t bytespp) {
-    if (data == NULL ||  width <= 0 || height <= 0 || bytespp <= 0) return NULL;
+uint8_t* tga_rle_encode(uint8_t* data, size_t* size, int16_t width, int16_t height, int8_t bytespp) {
+    if (data == NULL ||  width < 1 || height < 1 || bytespp < 1) return NULL;
     size_t   buffer_size  = width * height * bytespp;
     size_t   buffer_count = 0;
     uint8_t* buffer       = (uint8_t*)malloc(buffer_size);
@@ -96,12 +98,12 @@ uint8_t* tga_rle_encode(uint8_t* data, size_t* size, int32_t width, int32_t heig
     }
 
     *size = buffer_count;
-    uint8_t* the_buffer = (uint8_t*)malloc(buffer_count);
-    memcpy(the_buffer, buffer, buffer_count); free(buffer);
-    return the_buffer;
+    uint8_t* return_buff = (uint8_t*)malloc(buffer_count);
+    memcpy(return_buff, buffer, buffer_count); free(buffer);
+    return return_buff;
 }
 
-uint8_t* tga_rle_decode(uint8_t* data, size_t size, int32_t width, int32_t height, int8_t bytespp) {
+uint8_t* tga_rle_decode(uint8_t* data, size_t size, int16_t width, int16_t height, int8_t bytespp) {
     if (data == NULL || size == 0 || width <= 0 || height <= 0 || bytespp <= 0) return NULL;
     size_t   buffer_size  = width * height * bytespp;
     size_t   buffer_count = 0;
@@ -127,17 +129,16 @@ uint8_t* tga_rle_decode(uint8_t* data, size_t size, int32_t width, int32_t heigh
     } else return buffer; 
 }
 
-int tga_image_read(tga_image_t** image, const char* filename) {
-    if (filename == NULL || strcmp(filename, "") == 0) return 1;
-    if (image != NULL) tga_image_delete(*image);
+tga_image_t* tga_image_read(const char* filename) {
+    if (strcmp(filename, "") == 0) return NULL;
 
     FILE *file_stream = fopen(filename, "rb");
-	if (file_stream == NULL) return 2;
+	if (file_stream == NULL) return NULL;
 
     fseek(file_stream, 0, SEEK_END);
     long file_size = ftell(file_stream);
     bool foex = false;
-    if (file_size < 18) return 3;
+    if (file_size < 18) return NULL;
     uint8_t foot[18];
     uint8_t footer[18] = {'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E','.','\0'};
     fseek(file_stream, -17, SEEK_END);
@@ -159,40 +160,31 @@ int tga_image_read(tga_image_t** image, const char* filename) {
     fread(&file_header.bits_per_pixel,   1, sizeof(int8_t),  file_stream);
     fread(&file_header.image_descriptor, 1, sizeof(int8_t),  file_stream);
 
-    *image = (tga_image_t*)malloc(sizeof(tga_image_t));
-    memset(*image, 0, sizeof(tga_image_t));
-    (*image)->header  = file_header;
-    (*image)->data_color_size = 
+    tga_image_t* image = (tga_image_t*)malloc(sizeof(tga_image_t));
+    memset(image, 0, sizeof(tga_image_t));
+    image->header  = file_header;
+    image->data_color_size = 
         file_size - TGA_HEADER_SIZE - 
         (file_header.color_map_length * file_header.color_map_depth) - 
         file_header.id_length
     ; if (foex) {
-        (*image)->data_color_size -= TGA_FOOTER_SIZE;
+        image->data_color_size -= TGA_FOOTER_SIZE;
     } if (file_header.id_length) {
-        (*image)->data_id = (uint8_t*)malloc(file_header.id_length);
-        fread((*image)->data_id, 1, file_header.id_length, file_stream);
+        image->data_id = (uint8_t*)malloc(file_header.id_length);
+        fread(image->data_id, 1, file_header.id_length, file_stream);
     } if (file_header.color_map_type) {
         size_t size = file_header.color_map_length * file_header.color_map_depth;
-        (*image)->data_map = (uint8_t*)malloc(size);
-        fread((*image)->data_map, 1, size, file_stream);
+        image->data_map = (uint8_t*)malloc(size);
+        fread(image->data_map, 1, size, file_stream);
     } if (file_header.data_type_code > 0) { 
-        if (
-            !(*image)->data_color_size || (
-                file_header.data_type_code < 9 && 
-                (*image)->data_color_size < (
-                    file_header.width * 
-                    file_header.height * 
-                    file_header.bits_per_pixel
-                )
-            )
-        ) return 4;
-        (*image)->data_color = (uint8_t*)malloc((*image)->data_color_size);
-        fread((*image)->data_color, 1, (*image)->data_color_size, file_stream);
+        if (!image->data_color_size) return NULL;
+        image->data_color = (uint8_t*)malloc(image->data_color_size);
+        fread(image->data_color, 1, image->data_color_size, file_stream);
     } fclose(file_stream);
-    return 0;
+    return image;
 }
 
-int tga_image_write(tga_image_t* image, const char* filename) {
+bool tga_image_write(tga_image_t* image, const char* filename) {
     uint8_t developer_area_ref[4] = {0, 0, 0, 0};
 	uint8_t extension_area_ref[4] = {0, 0, 0, 0};
 	uint8_t footer[18] = {'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E','.','\0'};
@@ -201,7 +193,7 @@ int tga_image_write(tga_image_t* image, const char* filename) {
 	if (file_stream == NULL) 
 		file_stream = fopen(filename, "wb+");
     if (file_stream == NULL)
-        return 1;
+        return false;
     
     fwrite(&image->header.id_length,        1, sizeof(int8_t),  file_stream);
     fwrite(&image->header.color_map_type,   1, sizeof(int8_t),  file_stream);
@@ -229,7 +221,42 @@ int tga_image_write(tga_image_t* image, const char* filename) {
     fwrite(footer, 1, 18, file_stream);
 
     fclose(file_stream);
-    return 0;
+    return true;
+}
+
+bool tga_image_rle(tga_image_t* image) {
+    if (image == NULL || image->data_color == NULL || image->header.data_type_code == 0) return false;
+    image->header.data_type_code += 8;
+    uint8_t* buffer = tga_rle_encode(
+        image->data_color, 
+        &image->data_color_size, 
+        image->header.width, 
+        image->header.height, 
+        image->header.bits_per_pixel / 8
+    ); if (buffer == NULL) return false;
+    free(image->data_color);
+    image->data_color = (uint8_t*)malloc(image->data_color_size);
+    memcpy(image->data_color, buffer, image->data_color_size);
+    free(buffer); return true;
+}
+
+bool tga_image_rld(tga_image_t* image) {
+    if (image == NULL || image->data_color == NULL || image->header.data_type_code == 0) return false;
+    image->header.data_type_code -= 8;
+    uint8_t* buffer = tga_rle_decode(
+        image->data_color, 
+        image->data_color_size, 
+        image->header.width, 
+        image->header.height, 
+        image->header.bits_per_pixel / 8
+    ); if (buffer == NULL) return false;
+    free(image->data_color); image->data_color_size = 
+        image->header.width *
+        image->header.height * 
+        (image->header.bits_per_pixel / 8)
+    ; image->data_color = (uint8_t*)malloc(image->data_color_size);
+    memcpy(image->data_color, buffer, image->data_color_size);
+    free(buffer); return true;
 }
 
 void tga_image_delete(tga_image_t* image) {

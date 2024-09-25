@@ -1,6 +1,8 @@
 #ifndef _TGA_IMAGE_
 #define _TGA_IMAGE_
 
+// TODO: get color data
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -48,10 +50,15 @@ typedef struct tga_image {
 
 uint8_t*     tga_rle_encode  (uint8_t* data, size_t* size, int16_t width, int16_t height, int8_t bytespp);
 uint8_t*     tga_rle_decode  (uint8_t* data, size_t size, int16_t width, int16_t height, int8_t bytespp);
+uint8_t*     tga_bgra_rgba   (uint8_t* data, size_t size);
+uint8_t*     tga_get_color   (tga_image_t* image);
+tga_image_t* tga_image_create(tga_header_t header);
 tga_image_t* tga_image_read  (const char* filename);
-bool         tga_image_write (tga_image_t* image, const char* filename);
-bool         tga_image_rle   (tga_image_t* image);
-bool         tga_image_rld   (tga_image_t* image);
+int          tga_image_write (tga_image_t* image, const char* filename);
+int          tga_image_rle   (tga_image_t* image);
+int          tga_image_rld   (tga_image_t* image);
+int          tga_image_map   (tga_image_t* image);
+int          tga_image_unmap (tga_image_t* image);
 void         tga_image_delete(tga_image_t* image);
 
 #ifdef TGA_IMAGE_IMPL
@@ -129,8 +136,42 @@ uint8_t* tga_rle_decode(uint8_t* data, size_t size, int16_t width, int16_t heigh
     } else return buffer; 
 }
 
+uint8_t* tga_bgra_rgba(uint8_t* data, size_t size) {
+    if (data == NULL) return NULL;
+    uint8_t* buffer = (uint8_t*)malloc(size);
+    memcpy(buffer, data, size);
+
+    for (size_t i = 0; i < size; i += 4) {
+        buffer[i]     = data[i + 2];
+        buffer[i + 2] = data[i];
+    } return buffer;
+}
+
+uint8_t* tga_get_color(tga_image_t* image) {
+    return NULL;
+}
+
+tga_image_t* tga_image_create(tga_header_t header) {
+    tga_image_t* image = (tga_image_t*)malloc(sizeof(tga_image_t));
+    memset(image, 0, sizeof(tga_image_t));
+    image->header  = header;
+
+    if (header.id_length) { 
+        image->data_id = (uint8_t*)malloc(header.id_length); 
+        memset(image->data_id, 0, sizeof(header.id_length));
+    } if (header.color_map_type) { 
+        image->data_map = (uint8_t*)malloc(header.color_map_length * header.color_map_depth); 
+        memset(image->data_map, 0, sizeof(header.color_map_length * header.color_map_depth));
+    } if (header.data_type_code) { 
+        image->data_color_size = header.width * header.height * header.bits_per_pixel / 8;
+        image->data_color = (uint8_t*)malloc(image->data_color_size); 
+        memset(image->data_color, 0, sizeof(image->data_color_size));
+        if (header.data_type_code > 3) tga_image_rle(image);
+    } return image;
+}
+
 tga_image_t* tga_image_read(const char* filename) {
-    if (strcmp(filename, "") == 0) return NULL;
+    if (filename == NULL) return NULL;
 
     FILE *file_stream = fopen(filename, "rb");
 	if (file_stream == NULL) return NULL;
@@ -184,7 +225,7 @@ tga_image_t* tga_image_read(const char* filename) {
     return image;
 }
 
-bool tga_image_write(tga_image_t* image, const char* filename) {
+int tga_image_write(tga_image_t* image, const char* filename) {
     uint8_t developer_area_ref[4] = {0, 0, 0, 0};
 	uint8_t extension_area_ref[4] = {0, 0, 0, 0};
 	uint8_t footer[18] = {'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E','.','\0'};
@@ -224,7 +265,7 @@ bool tga_image_write(tga_image_t* image, const char* filename) {
     return true;
 }
 
-bool tga_image_rle(tga_image_t* image) {
+int tga_image_rle(tga_image_t* image) {
     if (image == NULL || image->data_color == NULL || image->header.data_type_code == 0) return false;
     image->header.data_type_code += 8;
     uint8_t* buffer = tga_rle_encode(
@@ -240,7 +281,7 @@ bool tga_image_rle(tga_image_t* image) {
     free(buffer); return true;
 }
 
-bool tga_image_rld(tga_image_t* image) {
+int tga_image_rld(tga_image_t* image) {
     if (image == NULL || image->data_color == NULL || image->header.data_type_code == 0) return false;
     image->header.data_type_code -= 8;
     uint8_t* buffer = tga_rle_decode(

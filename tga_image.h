@@ -1,8 +1,6 @@
 #ifndef _TGA_IMAGE_
 #define _TGA_IMAGE_
 
-// TODO: get color data
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,8 +48,12 @@ typedef struct tga_image {
 
 uint8_t*     tga_rle_encode  (uint8_t* data, size_t* size, int16_t width, int16_t height, int8_t bytespp);
 uint8_t*     tga_rle_decode  (uint8_t* data, size_t size, int16_t width, int16_t height, int8_t bytespp);
+uint8_t*     tga_bgr_rgb     (uint8_t* data, size_t size);
+uint8_t*     tga_bgra_argb   (uint8_t* data, size_t size);
 uint8_t*     tga_bgra_rgba   (uint8_t* data, size_t size);
-uint8_t*     tga_get_color   (tga_image_t* image);
+uint8_t*     tga_get_rgb     (tga_image_t* image);
+uint8_t*     tga_get_argb    (tga_image_t* image);
+uint8_t*     tga_get_rgba    (tga_image_t* image);
 tga_image_t* tga_image_create(tga_header_t header);
 tga_image_t* tga_image_read  (const char* filename);
 int          tga_image_write (tga_image_t* image, const char* filename);
@@ -136,6 +138,30 @@ uint8_t* tga_rle_decode(uint8_t* data, size_t size, int16_t width, int16_t heigh
     } else return buffer; 
 }
 
+uint8_t* tga_bgr_rgb(uint8_t* data, size_t size) {
+    if (data == NULL) return NULL;
+    uint8_t* buffer = (uint8_t*)malloc(size);
+    memcpy(buffer, data, size);
+
+    for (size_t i = 0; i < size; i += 3) {
+        buffer[i]     = data[i + 2];
+        buffer[i + 2] = data[i];
+    } return buffer;
+}
+
+uint8_t* tga_bgra_argb(uint8_t* data, size_t size) {
+    if (data == NULL) return NULL;
+    uint8_t* buffer = (uint8_t*)malloc(size);
+    memcpy(buffer, data, size);
+
+    for (size_t i = 0; i < size; i += 4) {
+        buffer[i]     = data[i + 3];
+        buffer[i + 1] = data[i + 2];
+        buffer[i + 2] = data[i + 1];
+        buffer[i + 3] = data[i];
+    } return buffer;
+}
+
 uint8_t* tga_bgra_rgba(uint8_t* data, size_t size) {
     if (data == NULL) return NULL;
     uint8_t* buffer = (uint8_t*)malloc(size);
@@ -147,8 +173,55 @@ uint8_t* tga_bgra_rgba(uint8_t* data, size_t size) {
     } return buffer;
 }
 
-uint8_t* tga_get_color(tga_image_t* image) {
-    return NULL;
+uint8_t* tga_get_rgb(tga_image_t* image) {
+    if (image == NULL || image->header.bits_per_pixel != 24) return NULL;
+    uint8_t* buffer = NULL;
+
+    if (image->header.data_type_code < 9) {
+        buffer = tga_bgr_rgb(image->data_color, image->data_color_size);
+    } else {
+        uint8_t* buffer_rld = tga_rle_decode(
+            image->data_color, 
+            image->data_color_size, 
+            image->header.width, image->header.height, 
+            image->header.bits_per_pixel / 8
+        ); buffer = tga_bgr_rgb(buffer_rld, image->header.width * image->header.height * (image->header.bits_per_pixel / 8));
+        free(buffer_rld);
+    } return buffer;
+}
+
+uint8_t* tga_get_argb(tga_image_t* image) {
+    if (image == NULL || image->header.bits_per_pixel != 32) return NULL;
+    uint8_t* buffer = NULL;
+
+    if (image->header.data_type_code < 9) {
+        buffer = tga_bgra_argb(image->data_color, image->data_color_size);
+    } else {
+        uint8_t* buffer_rld = tga_rle_decode(
+            image->data_color, 
+            image->data_color_size, 
+            image->header.width, image->header.height, 
+            image->header.bits_per_pixel / 8
+        ); buffer = tga_bgra_argb(buffer_rld, image->header.width * image->header.height * (image->header.bits_per_pixel / 8));
+        free(buffer_rld);
+    } return buffer;
+}
+
+uint8_t* tga_get_rgba(tga_image_t* image) {
+    if (image == NULL || image->header.bits_per_pixel != 32) return NULL;
+    uint8_t* buffer = NULL;
+
+    if (image->header.data_type_code < 9) {
+        buffer = tga_bgra_rgba(image->data_color, image->data_color_size);
+    } else {
+        uint8_t* buffer_rld = tga_rle_decode(
+            image->data_color, 
+            image->data_color_size, 
+            image->header.width, image->header.height, 
+            image->header.bits_per_pixel / 8
+        ); buffer = tga_bgra_rgba(buffer_rld, image->header.width * image->header.height * (image->header.bits_per_pixel / 8));
+        free(buffer_rld);
+    } return buffer;
 }
 
 tga_image_t* tga_image_create(tga_header_t header) {

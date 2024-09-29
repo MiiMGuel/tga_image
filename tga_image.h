@@ -9,17 +9,17 @@ extern "C" {
 #include <inttypes.h>
 
 // data type field
-typedef enum tga_dtf {
-    TGA_DTF_ZERO       = 0,
-    TGA_DTF_MAP        = 1,
-    TGA_DTF_RGB        = 2,
-    TGA_DTF_BW         = 3,
-    TGA_DTF_MAP_RLE    = 9,
-    TGA_DTF_RGB_RLE    = 10,
-    TGA_DTF_BW_RLE     = 11,
-    TGA_DTF_MAP_HDRLE  = 32,
-    TGA_DTF_MAP_HDRLE4 = 33
-} tga_dtf_t;
+typedef enum tga_dtc {
+    TGA_DTC_ZERO       = 0,
+    TGA_DTC_MAP        = 1,
+    TGA_DTC_RGB        = 2,
+    TGA_DTC_BW         = 3,
+    TGA_DTC_MAP_RLE    = 9,
+    TGA_DTC_RGB_RLE    = 10,
+    TGA_DTC_BW_RLE     = 11,
+    TGA_DTC_MAP_HDRLE  = 32,
+    TGA_DTC_MAP_HDRLE4 = 33
+} tga_dtc_t;
 
 #define TGA_HEADER_SIZE 18
 #define TGA_FOOTER_SIZE 26
@@ -200,15 +200,12 @@ tga_image_t* tga_image_create(tga_header_t header) {
     image->bytespp = header.bits_per_pixel / 8;
 
     if (header.id_length) { 
-        image->data_id = (uint8_t*)malloc(header.id_length); 
-        memset(image->data_id, 0, sizeof(header.id_length));
+        image->data_id = (uint8_t*)calloc(header.id_length, 1); 
     } if (header.color_map_type) { 
-        image->data_map = (uint8_t*)malloc(header.color_map_length * header.color_map_depth); 
-        memset(image->data_map, 0, sizeof(header.color_map_length * header.color_map_depth));
+        image->data_map = (uint8_t*)calloc(header.color_map_length * header.color_map_depth, 1); 
     } if (header.data_type_code) { 
         image->data_color_size = header.width * header.height * image->bytespp;
-        image->data_color = (uint8_t*)malloc(image->data_color_size); 
-        memset(image->data_color, 0, sizeof(image->data_color_size));
+        image->data_color = (uint8_t*)calloc(image->data_color_size, 1); 
         if (header.data_type_code > 3) tga_image_rle(image);
     } return image;
 }
@@ -346,7 +343,9 @@ int tga_image_rld(tga_image_t* image) {
 
 void tga_image_delete(tga_image_t* image) {
     if (image == NULL) return;
-    else if (image->data_color != NULL) free(image->data_color);
+    free(image->data_id);
+    free(image->data_map);
+    free(image->data_color);
     free(image);
 }
 

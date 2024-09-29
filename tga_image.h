@@ -78,20 +78,20 @@ uint8_t* tga_rle_encode(uint8_t* data, size_t* size, int16_t width, int16_t heig
     for (size_t i = bytespp; i < buffer_size; i += bytespp) {
         memcpy(pixelc, data + i, bytespp);
         if (((memcmp(pixelc, pixelp, bytespp) == 0) || countr > 127) && count < 127) { 
-            if (countr) {
+            if (countr) { i -= bytespp; countr -= 1;
                 buffer[buffer_count] = countr;
                 memcpy(buffer + (buffer_count + 1), data + i - ((countr + 1) * bytespp), (countr + 1) * bytespp);
                 buffer_count += 1 + (countr + 1) * bytespp;
                 countr = 0;
-            } else count++;
-        } else if (count) {
-            buffer[buffer_count] = count + 128;
-            memcpy(buffer + (buffer_count + 1), pixelp, bytespp);
-            buffer_count += 1 + bytespp; 
-            count = 0;
-        } else {
-            countr++;
-        } memcpy(pixelp, pixelc, bytespp);
+            } else { count++; memcpy(pixelp, data + i, bytespp); }
+        } else { 
+            if (count) {
+                buffer[buffer_count] = count + 128;
+                memcpy(buffer + (buffer_count + 1), pixelp, bytespp);
+                buffer_count += 1 + bytespp; 
+                count = 0;
+            } else { countr++; memcpy(pixelp, pixelc, bytespp); }
+        } 
     }
     
     if (countr) {
@@ -143,7 +143,7 @@ uint8_t* tga_endian_swap(uint8_t* data, size_t size, uint8_t bytespp) {
     uint8_t* buffer = (uint8_t*)malloc(size);
     memcpy(buffer, data, size);
 
-    if (bytespp < 3) {
+    if (bytespp > 2) {
         for (size_t i = 0; i < size; i += bytespp) {
             buffer[i]     = data[i + 2];
             buffer[i + 2] = data[i];
@@ -163,7 +163,11 @@ uint8_t* tga_image_getc(tga_image_t* image) {
             image->data_color_size, 
             image->header.width, image->header.height, 
             image->bytespp
-        ); buffer = tga_endian_swap(buffer_rld, image->header.width * image->header.height * image->bytespp, image->bytespp);
+        ); image->data_color_size = 
+        image->header.width * 
+        image->header.height * 
+        image->bytespp
+        ; buffer = tga_endian_swap(buffer_rld, image->data_color_size, image->bytespp);
         free(buffer_rld);
     } return buffer;
 }
@@ -181,7 +185,9 @@ void tga_image_setc(tga_image_t* image, uint8_t* color) {
             &image->data_color_size, 
             image->header.width, image->header.height, 
             image->bytespp
-        ); memcpy(image->data_color, color_es_rle, image->data_color_size);
+        ); free(image->data_color);
+        image->data_color = (uint8_t*)malloc(image->data_color_size); 
+        memcpy(image->data_color, color_es_rle, image->data_color_size);
         free(color_es);
         free(color_es_rle);
     }
